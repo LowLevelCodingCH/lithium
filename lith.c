@@ -4,6 +4,7 @@
 #include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdarg.h>
 
 #define cosθ cos(θ)
 #define sinθ sin(θ)
@@ -38,6 +39,11 @@ struct Mesh {
 	int am, ram;
 };
 
+enum Error {
+	LT_ALLOC,
+	LT_BOUNDS,
+};
+
 #define Vector3 Point3
 #define Vector2 Point2
 
@@ -51,6 +57,7 @@ typedef struct Vector2 Vector2;
 typedef struct Vector3 Vector3;
 typedef struct Mesh    Mesh;
 typedef struct Buffer  Buffer;
+typedef enum   Error   Error;
 
 typedef struct Buffer  LtBuffer;
 typedef struct Point2  LtPoint2;
@@ -61,6 +68,7 @@ typedef struct Vertex  LtVertex;
 typedef struct Vector2 LtVector2;
 typedef struct Vector3 LtVector3;
 typedef struct Mesh    LtMesh;
+typedef enum   Error   LtError;
 
 typedef float LtFloat;
 typedef int   LtInt;
@@ -223,6 +231,12 @@ float ltDegreeToRads(float deg)
 	return deg * (M_PI / 180);
 }
 
+void ltPushAlloc(void *alloc)
+{
+	LtAllocs[LtNewestAlloc] = alloc;
+	LtNewestAlloc++;
+}
+
 //void ltSaveLTObjectFile(string path, Mesh mesh)
 //{
 //	ofstream file(path, ios::binary);
@@ -254,6 +268,24 @@ float ltDegreeToRads(float deg)
 //	}
 //}
 
+void ltHeapDebug(void)
+{
+	printf("Allocs: %d\n", LtNewestAlloc);
+}
+
+void ltLogError(LtError err, char *fmt, ...)
+{
+	va_list arg;
+	va_start(arg, fmt);
+
+	ltHeapDebug();
+	vfprintf(stderr, fmt, arg);
+	putc('\n', stderr);
+	fprintf(stderr, "Failure reason: %d\n", err);
+
+	va_end(arg);
+}
+
 Mesh ltReadLTObjectFile(char *path)
 {
 	Mesh mesh;
@@ -264,10 +296,13 @@ Mesh ltReadLTObjectFile(char *path)
 	mesh.verts = (Vertex *) calloc(256, sizeof(Vertex));
 	mesh.vects = (Vector3 *) calloc(256, sizeof(Vector3));
 
-	LtAllocs[LtNewestAlloc] = mesh.verts;
-	LtNewestAlloc++;
-	LtAllocs[LtNewestAlloc] = mesh.vects;
-	LtNewestAlloc++;
+	if (!mesh.verts || !mesh.vects) {
+		ltLogError(LT_ALLOC, "Allocation error");
+		abort();
+	}
+
+	ltPushAlloc(mesh.verts);
+	ltPushAlloc(mesh.vects);
 
 	char *line = (char *) calloc(1024, 1);
 
@@ -340,11 +375,6 @@ Buffer ltInitBuffer(void)
 void ltInit(LtFloat foc, LtInt w, LtInt h)
 {
 	LtHeight = h; LtWidth = w; LtFocalLength = foc;
-}
-
-void ltHeapDebug(void)
-{
-	printf("Allocs: %d\n", LtNewestAlloc);
 }
 
 void ltTerminate(void)
