@@ -3,27 +3,72 @@
 #include <unistd.h>
 #include <lith.h>
 
-float angle = 0.0f;
-
-void fun(LtPoint3 *v)
-{
-	*v = ltRotateY(*v, angle);
-}
-
 int main()
 {
-	ltInit(1.75f, 40, 40);
+	ltInit(1.75f, 75, 75);
 
-	LtMesh mesh = ltReadLTObjectFile("cube.ltobj");
-	LtPoint3 cam = (Point3) {0.0f, 0.0f, -3.0f};
-	LtBuffer fb = ltInitBuffer();
+	vec3 cam = (vec3) {0.0f, 0.0f, -3.0f};
+	buffer fb = ltInitBuffer();
 
-	angle += ltDegreeToRads(1);
-	ltTransform(&mesh, fun);
-	ltRenderMesh(1, &fb, mesh.verts, mesh.vects, 12, cam);
+	int cols[12] = {
+		1,2,3,4,5,6,7,8,9,0,1,2
+	};
+	vec3 vecs[] = {
+		{-1.0f,-1.0f,-1.0f,},
+		{-1.0f,-1.0f, 1.0f,},
+		{-1.0f, 1.0f, 1.0f,},
+		{1.0f, 1.0f,-1.0f,},
+		{-1.0f,-1.0f,-1.0f,},
+		{-1.0f, 1.0f,-1.0f,},
+		{1.0f,-1.0f, 1.0f,},
+		{-1.0f,-1.0f,-1.0f,},
+		{1.0f,-1.0f,-1.0f,},
+		{1.0f, 1.0f,-1.0f,},
+		{1.0f,-1.0f,-1.0f,},
+		{-1.0f,-1.0f,-1.0f,},
+		{-1.0f,-1.0f,-1.0f,},
+		{-1.0f, 1.0f, 1.0f,},
+		{-1.0f, 1.0f,-1.0f,},
+		{1.0f,-1.0f, 1.0f,},
+		{-1.0f,-1.0f, 1.0f,},
+		{-1.0f,-1.0f,-1.0f,},
+		{-1.0f, 1.0f, 1.0f,},
+		{-1.0f,-1.0f, 1.0f,},
+		{1.0f,-1.0f, 1.0f,},
+		{1.0f, 1.0f, 1.0f,},
+		{1.0f,-1.0f,-1.0f,},
+		{1.0f, 1.0f,-1.0f,},
+		{1.0f,-1.0f,-1.0f,},
+		{1.0f, 1.0f, 1.0f,},
+		{1.0f,-1.0f, 1.0f,},
+		{1.0f, 1.0f, 1.0f,},
+		{1.0f, 1.0f,-1.0f,},
+		{-1.0f, 1.0f,-1.0f,},
+		{1.0f, 1.0f, 1.0f,},
+		{-1.0f, 1.0f,-1.0f,},
+		{-1.0f, 1.0f, 1.0f,},
+		{1.0f, 1.0f, 1.0f,},
+		{-1.0f, 1.0f, 1.0f,},
+		{1.0f,-1.0f, 1.0f},
+	};
+	triangle tris[] = {
+		{33, 34, 35},
+		{30, 31, 32},
+		{27, 28, 29},
+		{24, 25, 26},
+		{21, 22, 23},
+		{18, 19, 20},
+		{15, 16, 17},
+		{12, 13, 14},
+		{9, 10, 11},
+		{6, 7, 8},
+		{3, 4, 5},
+		{0, 1, 2},
+	};
+
+	ltDrawTriangles(tris, vecs, &fb, cols, 12, cam);
+
 	ltPrintb(&fb);
-	ltClear(&fb, 0);
-	usleep(100000);
 
 	ltHeapDebug();
 	ltTerminate();

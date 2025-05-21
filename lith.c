@@ -5,6 +5,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
+#include <stdbool.h>
+
+#define LITH_SWAP(T, a, b) do { T t = a; a = b; b = t; } while (0)
+
+#define FAILSAFE true
 
 #define cosθ cos(θ)
 #define sinθ sin(θ)
@@ -13,66 +18,57 @@ typedef float LtFloat;
 typedef int   LtInt;
 typedef void* LtPtr;
 
-struct Vertex {
+struct edge {
 	LtInt a, b;
 };
 
-struct Point3i {
+struct vec3i {
 	LtInt x, y, z;
 };
 
-struct Point3 {
+struct vec3 {
 	LtFloat x, y, z;
 };
 
-struct Point2 {
+struct vec2 {
 	LtFloat x, y;
 };
 
-struct Point2i {
+struct vec2i {
 	LtInt x, y;
 };
 
-struct Buffer {
+struct buffer {
 	LtInt *fb;
 };
 
-struct Mesh {
-	struct Vertex *verts;
-	struct Point3 *vects;
-	LtInt am, ram;
+// clockwise, a connects to b connects to c connects to a
+struct triangle {
+	// indecies of vec3s in an array
+	LtInt a, b, c;
 };
 
-enum Error {
+struct mesh {
+	struct edge *verts;
+	struct vec3 *vects;
+	struct triangle *tris;
+	LtInt am, ram, tam;
+};
+
+enum error {
 	LT_ALLOC,
 	LT_BOUNDS,
 };
 
-#define Vector3 Point3
-#define Vector2 Point2
-
-typedef struct Buffer  Buffer;
-typedef struct Point2  LtPoint2;
-typedef struct Point3  Point3;
-typedef struct Point2i LtPoint2i;
-typedef struct Point3i Point3i;
-typedef struct Vertex  Vertex;
-typedef struct Vector2 Vector2;
-typedef struct Vector3 Vector3;
-typedef struct Mesh    Mesh;
-typedef struct Buffer  Buffer;
-typedef enum   Error   Error;
-
-typedef struct Buffer  LtBuffer;
-typedef struct Point2  LtPoint2;
-typedef struct Point3  LtPoint3;
-typedef struct Point2i Ltint2i;
-typedef struct Pointi  LtPointi;
-typedef struct Vertex  LtVertex;
-typedef struct Vector2 LtVector2;
-typedef struct Vector3 LtVector3;
-typedef struct Mesh    LtMesh;
-typedef enum   Error   LtError;
+typedef struct buffer   buffer;
+typedef struct vec2     vec2;
+typedef struct vec3     vec3;
+typedef struct vec2i    vec2i;
+typedef struct vec3i    vec3i;
+typedef struct triangle triangle;
+typedef struct edge     edge;
+typedef struct mesh     mesh;
+typedef enum   error    error;
 
 LtInt   LtWidth       = 0;
 LtInt   LtHeight      = 0;
@@ -80,9 +76,9 @@ LtFloat LtFocalLength = 0;
 LtPtr   LtAllocs[65536] = { 0 };
 LtInt   LtNewestAlloc = 0;
 
-LtPoint2i ltNDCToScreen(Point2 v, LtInt w, LtInt h)
+vec2i ltNDCToScreen(vec2 v, LtInt w, LtInt h)
 {
-	LtPoint2i screenCoord;
+	vec2i screenCoord;
 	screenCoord.x = (LtInt) ((v.x + 1.0f) * 0.5f * w);
 	screenCoord.y = (LtInt) ((1.0f - v.y) * 0.5f * h);
 	screenCoord.x = screenCoord.x >= w ? w - 1 : screenCoord.x;
@@ -92,51 +88,51 @@ LtPoint2i ltNDCToScreen(Point2 v, LtInt w, LtInt h)
 	return screenCoord;
 }
 
-LtPoint3 ltScale3DVector(LtPoint3 v, LtFloat s)
+vec3 ltScale3Dvec(vec3 v, LtFloat s)
 {
-	return (LtPoint3) {v.x * s, v.y * s, v.z * s};
+	return (vec3) {v.x * s, v.y * s, v.z * s};
 }
 
-LtPoint3 ltAdd3DVectors(LtPoint3 v0, Point3 v1)
+vec3 ltAdd3Dvecs(vec3 v0, vec3 v1)
 {
-	return (LtPoint3) {v0.x + v1.x, v0.y + v1.y, v0.z + v1.z};
+	return (vec3) {v0.x + v1.x, v0.y + v1.y, v0.z + v1.z};
 }
 
-LtPoint3 ltSub3DVectors(LtPoint3 v0, Point3 v1)
+vec3 ltSub3Dvecs(vec3 v0, vec3 v1)
 {
-	return (LtPoint3) {v0.x - v1.x, v0.y - v1.y, v0.z - v1.z};
+	return (vec3) {v0.x - v1.x, v0.y - v1.y, v0.z - v1.z};
 }
 
-LtPoint2i ltProject(LtPoint3 p, LtFloat foc, LtInt w, LtInt h, LtPoint3 cam)
+vec2i ltProject(vec3 p, LtFloat foc, LtInt w, LtInt h, vec3 cam)
 {
-	LtPoint3 view = ltSub3DVectors(p, cam);
+	vec3 view = ltSub3Dvecs(p, cam);
 
 	LtFloat pX = (view.x * foc) / fmax(view.z + foc - 0.02f, 0.01f);
 	LtFloat pY = (view.y * foc) / fmax(view.z + foc - 0.02f, 0.01f);
 
-	LtPoint2 pr = (Point2) {pX, pY};
+	vec2 pr = (vec2) {pX, pY};
 
 	return ltNDCToScreen(pr, w, h);
 }
 
-void ltTransform(Mesh *m, void (*f)(LtPoint3 *))
+void ltTransform(mesh *m, void (*f)(vec3 *))
 {
 	for (LtInt i = 0; i < m->am; i++)
 		f(&m->vects[i]);
 }
 
-void ltClear(Buffer *buf, LtInt col)
+void ltClear(buffer *buf, LtInt col)
 {
 	for (LtInt i = 0; i < LtWidth * LtHeight; i++)
 		buf->fb[i] = col;
 }
 
-void ltDrawPixel(LtPoint2i p, LtInt col, Buffer *b)
+void ltDrawPixel(vec2i p, LtInt col, buffer *b)
 {
 	b->fb[p.x + p.y * LtWidth] = col;
 }
 
-void ltDrawLine(LtPoint2i v1, LtPoint2i v2, LtInt col, Buffer *b)
+void ltDrawLine(vec2i v1, vec2i v2, LtInt col, buffer *b)
 {
 	LtInt w = LtWidth; LtInt h = LtHeight;
 
@@ -153,7 +149,7 @@ void ltDrawLine(LtPoint2i v1, LtPoint2i v2, LtInt col, Buffer *b)
 
 	while (1) {
 		if (x0 >= 0 && y0 >= 0 && x0 < w && y0 < h)
-			ltDrawPixel((LtPoint2i) {x0, y0}, col, b);
+			ltDrawPixel((vec2i) {x0, y0}, col, b);
 		else
 			return;
 		
@@ -175,24 +171,75 @@ void ltDrawLine(LtPoint2i v1, LtPoint2i v2, LtInt col, Buffer *b)
 	return;
 }
 
-void ltRenderMesh(LtInt col, Buffer *buf, Vertex *vertices, LtPoint3 *points, LtInt vert_am, LtPoint3 cam)
+void ltDrawTriangle(triangle tri, vec3 *points, buffer *buf, LtInt col, vec3 cam)
+{
+	vec2i a, b, c;
+
+	a = ltProject(points[tri.a], LtFocalLength, LtWidth, LtHeight, cam);
+	b = ltProject(points[tri.b], LtFocalLength, LtWidth, LtHeight, cam);
+	c = ltProject(points[tri.c], LtFocalLength, LtWidth, LtHeight, cam);
+
+	if (FAILSAFE) {
+		ltDrawLine(a, b, col, buf);
+		ltDrawLine(b, c, col, buf);
+		ltDrawLine(c, a, col, buf);
+	}
+
+	int y0, y1, y2, x0, x1, x2;
+	y0 = a.y;y1 = b.y;y2 = c.y;
+	x0 = a.x;x1 = b.x;x2 = c.x;
+
+	if (y0 > y1) { LITH_SWAP(int, y0, y1); LITH_SWAP(int, x0, x1); }
+	if (y0 > y2) { LITH_SWAP(int, y0, y2); LITH_SWAP(int, x0, x2); }
+	if (y1 > y2) { LITH_SWAP(int, y1, y2); LITH_SWAP(int, x1, x2); }
+
+	int total_h = y2 - y0;
+
+	for (int i = 0; i < total_h; i++) {
+		bool second_half = i > y1 - y0 || y1 == y0;
+		int segment_h = second_half ? y2 - y1 : y1 - y0;
+		float alpha = (float) i / total_h;
+		float beta = (float) (i - (second_half ? y1 - y0 : 0)) / segment_h;
+		int ax = x0 + (x2 - x0) * alpha;
+		int ay = y0 + i;
+		int bx = second_half ? x1 + (x2 - x1) * beta : x0 + (x1 - x0) * beta;
+		int by = y0 + i;
+
+		if (ax > bx) {
+			LITH_SWAP(int, ax, bx);
+			LITH_SWAP(int, ay, by);
+		}
+
+		for (int j = ax; j <= bx; j++)
+			if (0 <= j && j < LtWidth && 0 <= ay && ay < LtHeight)
+				ltDrawPixel((vec2i) {j, ay}, col, buf);
+	}
+}
+
+void ltDrawTriangles(triangle *tris, vec3 *points, buffer *buf, LtInt *cols, LtInt tricount, vec3 cam)
+{
+	for (int i = 0; i < tricount; i++)
+		ltDrawTriangle(tris[i], points, buf, cols[i], cam);
+}
+
+void ltRenderMesh(LtInt col, buffer *buf, edge *edges, vec3 *points, LtInt vert_am, vec3 cam)
 {
 	LtInt   w   = LtWidth;
 	LtInt   h   = LtHeight;
 	LtFloat foc = LtFocalLength;
 
 	for (LtInt i = 0; i < vert_am; i++) {
-		LtPoint3 a = points[vertices[i].a];
-		LtPoint3 b = points[vertices[i].b];
+		vec3 a = points[edges[i].a];
+		vec3 b = points[edges[i].b];
 
-		LtPoint2i Pa = ltProject(a, foc, w, h, cam);
-		LtPoint2i Pb = ltProject(b, foc, w, h, cam);
+		vec2i Pa = ltProject(a, foc, w, h, cam);
+		vec2i Pb = ltProject(b, foc, w, h, cam);
 
 		ltDrawLine(Pa, Pb, col, buf);
 	}
 }
 
-void ltPrintb(Buffer *b)
+void ltPrintb(buffer *b)
 {
 	LtInt w = LtWidth;
 	LtInt h = LtHeight;
@@ -204,7 +251,7 @@ void ltPrintb(Buffer *b)
 	}
 }
 
-LtPoint3 ltRotateX(Point3 in, LtFloat θ)
+vec3 ltRotateX(vec3 in, LtFloat θ)
 {
 	LtFloat x´, y´, z´, x, y, z;
 	x = in.x; y = in.y; z = in.z;
@@ -214,10 +261,10 @@ LtPoint3 ltRotateX(Point3 in, LtFloat θ)
 	z´ = y * sinθ + z * cosθ;
 
 
-	return (LtPoint3) {x´, y´, z´};
+	return (vec3) {x´, y´, z´};
 }
 
-LtPoint3 ltRotateY(Point3 in, LtFloat θ)
+vec3 ltRotateY(vec3 in, LtFloat θ)
 {
 	LtFloat x´, y´, z´, x, y, z;
 	x = in.x; y = in.y; z = in.z;
@@ -226,10 +273,10 @@ LtPoint3 ltRotateY(Point3 in, LtFloat θ)
 	y´ = y;
 	z´ = x * sinθ + z * cosθ;
 
-	return (LtPoint3) {x´, y´, z´};
+	return (vec3) {x´, y´, z´};
 }
 
-LtPoint3 ltRotateZ(Point3 in, LtFloat θ)
+vec3 ltRotateZ(vec3 in, LtFloat θ)
 {
 	LtFloat x´, y´, z´, x, y, z;
 	x = in.x; y = in.y; z = in.z;
@@ -238,7 +285,7 @@ LtPoint3 ltRotateZ(Point3 in, LtFloat θ)
 	y´ = x * sinθ + y * cosθ;
 	z´ = z;
 
-	return (LtPoint3) {x´, y´, z´};
+	return (vec3) {x´, y´, z´};
 }
 
 LtFloat ltDegreeToRads(LtFloat deg)
@@ -252,7 +299,7 @@ void ltPushAlloc(void *alloc)
 	LtNewestAlloc++;
 }
 
-//void ltSaveLTObjectFile(string path, Mesh mesh)
+//void ltSaveLTObjectFile(string path, mesh mesh)
 //{
 //	ofstream file(path, ios::binary);
 //
@@ -288,7 +335,7 @@ void ltHeapDebug(void)
 	printf("Allocs: %d\n", LtNewestAlloc);
 }
 
-void ltLogError(LtError err, char *fmt, ...)
+void ltLogError(error err, char *fmt, ...)
 {
 	va_list arg;
 	va_start(arg, fmt);
@@ -301,35 +348,35 @@ void ltLogError(LtError err, char *fmt, ...)
 	va_end(arg);
 }
 
-Mesh ltReadLTObjectFile(char *path)
+mesh ltReadLTObjectFile(char *path)
 {
-	Mesh mesh;
-	mesh.am = 0;
-	mesh.ram = 0;
+	mesh Mesh;
+	Mesh.am = 0;
+	Mesh.ram = 0;
 	FILE *file = fopen(path, "r");
 
-	mesh.verts = (Vertex *) calloc(256, sizeof(Vertex));
-	mesh.vects = (Vector3 *) calloc(256, sizeof(Vector3));
+	Mesh.verts = (edge *) calloc(256, sizeof(edge));
+	Mesh.vects = (vec3 *) calloc(256, sizeof(vec3));
 
-	if (!mesh.verts || !mesh.vects) {
+	if (!Mesh.verts || !Mesh.vects) {
 		ltLogError(LT_ALLOC, "Allocation error");
 		abort();
 	}
 
-	ltPushAlloc(mesh.verts);
-	ltPushAlloc(mesh.vects);
+	ltPushAlloc(Mesh.verts);
+	ltPushAlloc(Mesh.vects);
 
 	char *line = (char *) calloc(1024, 1);
 
 	LtInt mode = 0; // 0 is invalid
 		      // 1 is poLtInts/vectors
-		      // 2 is vertices
+		      // 2 is edges (called verts)
 
 	LtInt len = 0;
 
 	fgets(line, 16, file);
 
-	if (strcmp(line, "LTObjF\n")) return mesh;
+	if (strcmp(line, "LTObjF\n")) return Mesh;
 
 	while (fgets(line, 16, file)) {
 		if (!strcmp(line, "\n")) continue;
@@ -351,8 +398,8 @@ Mesh ltReadLTObjectFile(char *path)
 			memcpy(&y, floatY, sizeof(LtFloat));
 			memcpy(&z, floatZ, sizeof(LtFloat));
 
-			mesh.vects[mesh.am] = (LtPoint3) {x, y, z};
-			mesh.am++;
+			Mesh.vects[Mesh.am] = (vec3) {x, y, z};
+			Mesh.am++;
 		} else if (mode == 2) {
 			LtInt a, b;
 			char *intA = &line[0];
@@ -360,24 +407,21 @@ Mesh ltReadLTObjectFile(char *path)
 			memcpy(&a, intA, sizeof(LtInt));
 			memcpy(&b, intB, sizeof(LtInt));
 
-			mesh.verts[mesh.ram] = (Vertex) {a, b};
-
-			mesh.ram++;
+			Mesh.verts[Mesh.ram] = (edge) {a, b};
+			Mesh.ram++;
 		}
 
 	}
 
-	printf("Loaded %d Vectors (LtPoints) and %d Vertices (Edges)\n", mesh.am, mesh.ram);
-
 	fclose(file);
 	free(line);
 
-	return mesh;
+	return Mesh;
 }
 
-Buffer ltInitBuffer(void)
+buffer ltInitBuffer(void)
 {
-	Buffer a;
+	buffer a;
 
 	a.fb = (LtInt *) calloc(LtWidth * LtHeight, sizeof(LtInt));
 

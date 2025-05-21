@@ -1,90 +1,85 @@
 #ifndef LIBLITH_HDR
 #define LIBLITH_HDR 1
 
-struct Vertex {
-	int a, b;
-};
-
-struct Point3i {
-	int x, y, z;
-};
-
-struct Point3 {
-	float x, y, z;
-};
-
-struct Point2 {
-	float x, y;
-};
-
-struct Point2i {
-	int x, y;
-};
-
-struct Buffer {
-	int *fb;
-};
-
-struct Mesh {
-	struct Vertex *verts;
-	struct Point3 *vects;
-	int am, ram;
-};
-
-enum Error {
-	LT_ALLOC,
-	LT_BOUNDS,
-};
-
-#define Vector3 Point3
-#define Vector2 Point2
-
-typedef struct Buffer  Buffer;
-typedef struct Point2  Point2;
-typedef struct Point3  Point3;
-typedef struct Point2i Point2i;
-typedef struct Point3i Point3i;
-typedef struct Vertex  Vertex;
-typedef struct Vector2 Vector2;
-typedef struct Vector3 Vector3;
-typedef struct Mesh    Mesh;
-typedef struct Buffer  Buffer;
-typedef enum   Error   Error;
-
-typedef struct Buffer  LtBuffer;
-typedef struct Point2  LtPoint2;
-typedef struct Point3  LtPoint3;
-typedef struct Point2i LtPoint2i;
-typedef struct Point3i LtPoint3i;
-typedef struct Vertex  LtVertex;
-typedef struct Vector2 LtVector2;
-typedef struct Vector3 LtVector3;
-typedef struct Mesh    LtMesh;
-typedef enum   Error   LtError;
-
 typedef float LtFloat;
 typedef int   LtInt;
 typedef void* LtPtr;
 
-Point2i ltNDCToScreen(Point2 v, int w, int h);
-Point2i ltProject(Point3 p, float foc, int w, int h, Point3 cam);
-Point3  ltScale3DVector(Point3 v, float s);
-Point3  ltAdd3DVectors(Point3 v0, Point3 v1);
-Point3  ltSub3DVectors(Point3 v0, Point3 v1);
-Point3  ltRotateX(Point3 in, float θ);
-Point3  ltRotateY(Point3 in, float θ);
-Point3  ltRotateZ(Point3 in, float θ);
-void    ltTransform(Mesh *m, void (*f)(Point3 *));
-Mesh    ltReadLTObjectFile(char *path);
-Buffer  ltInitBuffer(void);
-float   ltDegreeToRads(float deg);
-void    ltDrawPixel(Point2i p, int col, Buffer *b, int w, int h);
-void    ltDrawLine(Point2i v1, Point2i v2, int col, Buffer *b, int w, int h);
-void    ltRenderMesh(int col, Buffer *buf, Vertex *vertices, Point3 *points, LtInt vert_am, Point3 cam);
-void    ltClear(Buffer *buf, LtInt col);
-void    ltPrintb(Buffer *b);
-void    ltHeapDebug(void);
-void    ltInit(LtFloat foc, LtInt w, LtInt h);
-void    ltTerminate(void);
+struct edge {
+	LtInt a, b;
+};
+
+struct vec3i {
+	LtInt x, y, z;
+};
+
+struct vec3 {
+	LtFloat x, y, z;
+};
+
+struct vec2 {
+	LtFloat x, y;
+};
+
+struct vec2i {
+	LtInt x, y;
+};
+
+struct buffer {
+	LtInt *fb;
+};
+
+// clockwise, a connects to b connects to c connects to a
+struct triangle {
+	// indecies of vec3s in an array
+	LtInt a, b, c;
+};
+
+struct mesh {
+	struct edge *verts;
+	struct vec3 *vects;
+	struct triangle *tris;
+	LtInt am, ram, tam;
+};
+
+enum error {
+	LT_ALLOC,
+	LT_BOUNDS,
+};
+
+typedef struct buffer   buffer;
+typedef struct vec2     vec2;
+typedef struct vec3     vec3;
+typedef struct vec2i    vec2i;
+typedef struct vec3i    vec3i;
+typedef struct triangle triangle;
+typedef struct edge     edge;
+typedef struct mesh     mesh;
+typedef enum   error    error;
+
+vec2i ltNDCToScreen(vec2 v, LtInt w, LtInt h);
+vec3 ltScale3Dvec(vec3 v, LtFloat s);
+vec3 ltAdd3Dvecs(vec3 v0, vec3 v1);
+vec3 ltSub3Dvecs(vec3 v0, vec3 v1);
+vec2i ltProject(vec3 p, LtFloat foc, LtInt w, LtInt h, vec3 cam);
+void ltTransform(mesh *m, void (*f)(vec3 *));
+void ltClear(buffer *buf, LtInt col);
+void ltDrawPixel(vec2i p, LtInt col, buffer *b);
+void ltDrawLine(vec2i v1, vec2i v2, LtInt col, buffer *b);
+void ltDrawTriangle(triangle tri, vec3 *points, buffer *buf, LtInt col, vec3 cam);
+void ltDrawTriangles(triangle *tris, vec3 *points, buffer *buf, LtInt *cols, LtInt tricount, vec3 cam);
+void ltRenderMesh(LtInt col, buffer *buf, edge *edges, vec3 *points, LtInt vert_am, vec3 cam);
+void ltPrintb(buffer *b);
+vec3 ltRotateX(vec3 in, LtFloat θ);
+vec3 ltRotateY(vec3 in, LtFloat θ);
+vec3 ltRotateZ(vec3 in, LtFloat θ);
+LtFloat ltDegreeToRads(LtFloat deg);
+void ltPushAlloc(void *alloc);
+void ltHeapDebug(void);
+void ltLogError(error err, char *fmt, ...);
+mesh ltReadLTObjectFile(char *path);
+buffer ltInitBuffer(void);
+void ltInit(LtFloat foc, LtInt w, LtInt h);
+void ltTerminate(void);
 
 #endif // LIBLITH_HDR
